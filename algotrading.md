@@ -1,3 +1,6 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 ## Algorithmic Trading Strategy
 
 ## Introduction
