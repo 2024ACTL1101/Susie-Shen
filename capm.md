@@ -23,7 +23,7 @@ The CAPM provides a framework to understand the relationship between systematic 
 -   `quantmod` stands for "Quantitative Financial Modelling Framework". It was developed to aid the quantitative trader in the development, testing, and deployment of statistically based trading models.
 -   Make sure to install the `quantmod` package by running `install.packages("quantmod")` in the R console before proceeding.
 
-```{r load-data}
+```
 # Set start and end dates
 start_date <- as.Date("2019-05-20")
 end_date <- as.Date("2024-05-20")
@@ -45,7 +45,7 @@ df <- merge(df, rf_df, by = "Date")
 
 #### Data Processing
 
-```{r data}
+```
 colSums(is.na(df))
 # Fill N/A RF data
 df <- df %>%
