@@ -1,216 +1,347 @@
+---
+title: "ACTL1101 Assignment Part A"
+author: "Shu (Susie) Shen"
+date: "2024 T2"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+    
+---
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# CAPM Analysis
+## Algorithmic Trading Strategy
 
 ## Introduction
 
-In this assignment, you will explore the foundational concepts of the Capital Asset Pricing Model (CAPM) using historical data for AMD and the S&P 500 index. This exercise is designed to provide a hands-on approach to understanding how these models are used in financial analysis to assess investment risks and returns.
+In this assignment, you will develop an algorithmic trading strategy by incorporating financial metrics to evaluate its profitability. This exercise simulates a real-world scenario where you, as part of a financial technology team, need to present an improved version of a trading algorithm that not only executes trades but also calculates and reports on the financial performance of those trades.
 
 ## Background
 
-The CAPM provides a framework to understand the relationship between systematic risk and expected return, especially for stocks. This model is critical for determining the theoretically appropriate required rate of return of an asset, assisting in decisions about adding assets to a diversified portfolio.
+Following a successful presentation to the Board of Directors, you have been tasked by the Trading Strategies Team to modify your trading algorithm. This modification should include tracking the costs and proceeds of trades to facilitate a deeper evaluation of the algorithm’s profitability, including calculating the Return on Investment (ROI).
+  
+After meeting with the Trading Strategies Team, you were asked to include costs, proceeds, and return on investments metrics to assess the profitability of your trading algorithm.
 
 ## Objectives
 
-1.  **Load and Prepare Data:** Import and prepare historical price data for AMD and the S&P 500 to ensure it is ready for detailed analysis.
-2.  **CAPM Implementation:** Focus will be placed on applying the CAPM to examine the relationship between AMD's stock performance and the overall market as represented by the S&P 500.
-3.  **Beta Estimation and Analysis:** Calculate the beta of AMD, which measures its volatility relative to the market, providing insights into its systematic risk.
-4.  **Results Interpretation:** Analyze the outcomes of the CAPM application, discussing the implications of AMD's beta in terms of investment risk and potential returns.
+1.  **Load and Prepare Data:** Open and run the starter code to create a DataFrame with stock closing data.
+
+2.  **Implement Trading Algorithm:** Create a simple trading algorithm based on daily price changes.
+
+3.  **Customize Trading Period:** Choose your entry and exit dates.
+
+4.  **Report Financial Performance:** Analyze and report the total profit or loss (P/L) and the ROI of the trading strategy.
+
+5.  **Implement a Trading Strategy:** Implement a trading strategy and analyze the total updated P/L and ROI.
+
+6.  **Discussion:** Summarise your finding.
 
 ## Instructions
 
 ### Step 1: Data Loading
 
--   We are using the `quantmod` package to directly load financial data from Yahoo Finance without the need to manually download and read from a CSV file.
--   `quantmod` stands for "Quantitative Financial Modelling Framework". It was developed to aid the quantitative trader in the development, testing, and deployment of statistically based trading models.
--   Make sure to install the `quantmod` package by running `install.packages("quantmod")` in the R console before proceeding.
+Start by running the provided code cells in the "Data Loading" section to generate a DataFrame containing AMD stock closing data. This will serve as the basis for your trading decisions. First, create a data frame named `amd_df` with the given closing prices and corresponding dates.
 
-```{r load}
-# Set start and end dates
-start_date <- as.Date("2019-05-20")
-end_date <- as.Date("2024-05-20")
+```{r load-data}
 
-# Load data for AMD, S&P 500, and the 1-month T-Bill (DTB4WK)
-amd_data <- getSymbols("AMD", src = "yahoo", from = start_date, to = end_date, auto.assign = FALSE)
-gspc_data <- getSymbols("^GSPC", src = "yahoo", from = start_date, to = end_date, auto.assign = FALSE)
-rf_data <- getSymbols("DTB4WK", src = "FRED", from = start_date, to = end_date, auto.assign = FALSE)
+# Load data from CSV file
+amd_df <- read.csv("AMD.csv")
 
-# Convert Adjusted Closing Prices and DTB4WK to data frames
-amd_df <- data.frame(Date = index(amd_data), AMD = as.numeric(Cl(amd_data)))
-gspc_df <- data.frame(Date = index(gspc_data), GSPC = as.numeric(Cl(gspc_data)))
-rf_df <- data.frame(Date = index(rf_data), RF = as.numeric(rf_data[,1]))  # Accessing the first column of rf_data
+# Convert the date column to Date type and Adjusted Close as numeric
+amd_df$date <- as.Date(amd_df$Date)
+amd_df$close <- as.numeric(amd_df$Adj.Close)
 
-# Merge the AMD, GSPC, and RF data frames on the Date column
-df <- merge(amd_df, gspc_df, by = "Date")
-df <- merge(df, rf_df, by = "Date")
+amd_df <- amd_df[, c("date", "close")]
 ```
 
-#### Data Processing
-
-```
-colSums(is.na(df))
-# Fill N/A RF data
-df <- df %>%
-  fill(RF, .direction = "down") 
-```
-
-### Step 2: CAPM Analysis
-
-The Capital Asset Pricing Model (CAPM) is a financial model that describes the relationship between systematic risk and expected return for assets, particularly stocks. It is widely used to determine a theoretically appropriate required rate of return of an asset, to make decisions about adding assets to a well-diversified portfolio.
-
-#### The CAPM Formula
-
-The formula for CAPM is given by:
-
-$$ E(R_i) = R_f + \beta_i (E(R_m) - R_f) $$
-
-Where:
-
--   $E(R_i)$ is the expected return on the capital asset,
--   $R_f$ is the risk-free rate,
--   $\beta_i$ is the beta of the security, which represents the systematic risk of the security,
--   $E(R_m)$ is the expected return of the market.
-
-#### CAPM Model Daily Estimation
-
--   **Calculate Returns**: First, we calculate the daily returns for AMD and the S&P 500 from their adjusted closing prices. This should be done by dividing the difference in prices between two consecutive days by the price at the beginning of the period. $$
-    \text{Daily Return} = \frac{\text{Today's Price} - \text{Previous Trading Day's Price}}{\text{Previous Trading Day's Price}}
-    $$
-
-```{r return}
-
-# Calculate Daily Returns for AMD
-
-#Set all values in the new column AMD_return as NA first
-df$AMD_return <- NA
-
-#For loop to calculate the daily returns 
-for (i in 2:nrow(df)) {
-  if (!is.na(df$AMD[i]) && !is.na(df$AMD[i - 1]) && df$AMD[i - 1] != 0) {
-    df$AMD_return[i] <- (df$AMD[i] - df$AMD[i - 1]) / df$AMD[i - 1]
-  }
-}
-
-# Calculate Daily Returns for S&P 500
-df$GSPC_return <- NA
-
-for (i in 2:nrow(df)) {
-  if (!is.na(df$GSPC[i]) && !is.na(df$GSPC[i - 1]) && df$GSPC[i - 1] != 0) {
-    df$GSPC_return[i] <- (df$GSPC[i] - df$GSPC[i - 1]) / df$GSPC[i - 1]
-  }
-}
-```
-
--   **Calculate Risk-Free Rate**: Calculate the daily risk-free rate by conversion of annual risk-free Rate. This conversion accounts for the compounding effect over the days of the year and is calculated using the formula: $$
-    \text{Daily Risk-Free Rate} = \left(1 + \frac{\text{Annual Rate}}{100}\right)^{\frac{1}{360}} - 1
-    $$
-
-```{r riskfree}
-
-# Calculate daily risk-free rate
-df$RF_daily <- (1 + df$RF/100)^(1/360) - 1
-```
-
--   **Calculate Excess Returns**: Compute the excess returns for AMD and the S&P 500 by subtracting the daily risk-free rate from their respective returns.
-
-```{r excess return}
-df$AMD_excess_return <- NA
-df$GSPC_excess_return <- NA
-
-for (i in 2:nrow(df)) {
-  # Calculate excess returns for AMD
-  df$AMD_excess_return[i] <- df$AMD_return[i] - df$RF_daily[i]
-  
-  # Calculate excess returns for S&P 500
-  df$GSPC_excess_return[i] <- df$GSPC_return[i] - df$RF_daily[i]
-}
-```
-
--   **Perform Regression Analysis**: Using linear regression, we estimate the beta ($\beta$) of AMD relative to the S&P 500. Here, the dependent variable is the excess return of AMD, and the independent variable is the excess return of the S&P 500. Beta measures the sensitivity of the stock's returns to fluctuations in the market.
-
-```{r lm}
-# Perform linear regression
-model1 <- lm(AMD_excess_return ~ GSPC_excess_return, data = df)
-
-# Extract key statistics
-beta <- coef(model1)[2]
-alpha <- coef(model1)[1]
-r_squared <- summary(model1)$r.squared
-
-print(beta)
-```
-
-#### Interpretation
-
-What is your $\beta$? Is AMD more volatile or less volatile than the market?
-
-**Answer:**
-
-Based on our CAPM analysis, AMD's beta ($\beta$) of 1.569999 indicates that the stock is more volatile than the overall market. This means that, on average, for every 1% movement in the S&P 500 index, AMD's stock price tends to move by a larger percentage. This higher volatility suggests that AMD carries greater systematic risk compared to the market. For investors, this implies that AMD may offer the potential for higher returns in bullish markets but also greater losses in bearish conditions. Understanding this risk profile is crucial for portfolio construction and risk management strategies. Investors considering AMD should be prepared for potentially larger price swings compared to the broader market and should factor this higher volatility into their investment decisions and risk tolerance assessments.
-
-#### Plotting the CAPM Line
-
-Plot the scatter plot of AMD vs. S&P 500 excess returns and add the CAPM regression line.
+##Plotting the Data Plot the closing prices over time to visualize the price movement.
 
 ```{r plot}
-# Plot the regression line
-ggplot(subset(df, !is.na(GSPC_excess_return)), aes(x = GSPC_excess_return, y = AMD_excess_return)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm", color = "red", formula = y ~ x) +
-  labs(title = "CAPM Regression: AMD vs S&P 500",
-       x = "S&P 500 Excess Return",
-       y = "AMD Excess Return") +
-  theme_minimal() +
-  annotate("text", x = min(df$GSPC_excess_return, na.rm = TRUE), 
-           y = max(df$AMD_excess_return, na.rm = TRUE),
-           label = paste("Beta =", round(beta, 6), "\n",
-                         "Alpha =", round(alpha, 6), "\n",
-                         "R-squared =", round(r_squared, 6)),
-           hjust = 0, vjust = 1) +
-  coord_cartesian(clip = 'off')
+plot(amd_df$date, amd_df$close,'l')
 ```
 
-### Step 3: Predictions Interval
+## Step 2: Trading Algorithm
 
-Suppose the current risk-free rate is 5.0%, and the annual expected return for the S&P 500 is 13.3%. Determine a 90% prediction interval for AMD's annual expected return.
+Implement the trading algorithm as per the instructions. You should initialize necessary variables, and loop through the dataframe to execute trades based on the set conditions.
 
-*Hint: Calculate the daily standard error of the forecast (*$s_f$), and assume that the annual standard error for prediction is $s_f \times \sqrt{252}$. Use the simple return average method to convert daily stock returns to annual returns if needed.
+-   Initialize Columns: Start by ensuring dataframe has columns 'trade_type', 'costs_proceeds' and 'accumulated_shares'.
+-   Change the algorithm by modifying the loop to include the cost and proceeds metrics for buys of 100 shares. Make sure that the algorithm checks the following conditions and executes the strategy for each one:
+    -   If the previous price = 0, set 'trade_type' to 'buy', and set the 'costs_proceeds' column to the current share price multiplied by a `share_size` value of 100. Make sure to take the negative value of the expression so that the cost reflects money leaving an account. Finally, make sure to add the bought shares to an `accumulated_shares` variable.
+    -   Otherwise, if the price of the current day is less than that of the previous day, set the 'trade_type' to 'buy'. Set the 'costs_proceeds' to the current share price multiplied by a `share_size` value of 100.
+    -   You will not modify the algorithm for instances where the current day’s price is greater than the previous day’s price or when it is equal to the previous day’s price.
+    -   If this is the last day of trading, set the 'trade_type' to 'sell'. In this case, also set the 'costs_proceeds' column to the total number in the `accumulated_shares` variable multiplied by the price of the last day.
 
-**Answer:**
+```{r trading}
+# Initialize columns for trade type, cost/proceeds, and accumulated shares in amd_df
+amd_df$trade_type <- NA
+amd_df$costs_proceeds <- NA  # Corrected column name
+amd_df$accumulated_shares <- 0  # Initialize if needed for tracking
 
-```{r pi}
-# Given information
-rf_annual <- 0.05  # 5% risk-free rate
-rm_annual <- 0.133  # 13.3% expected market return
-trading_days <- 252
-k <- 1
+# Initialize variables for trading logic
+previous_price <- 0
+share_size <- 100
+accumulated_shares <- 0
 
-n <- length(model1$fitted.values)
-X_bar <- mean(df$GSPC_excess_return, na.rm = TRUE) * trading_days
-
-rm_daily = 0.133 / trading_days
-rf_daily = (1+rf_annual)^(1/360) - 1
-X_f <- rm_annual-rf_annual
-
-# Extract beta and calculate expected return for AMD
-beta <- coef(model1)[2]
-expected_return_amd <- rf_annual + beta * (rm_annual - rf_annual)
-
-# Calculate Sum of Square Errors (SSE)
-SSE <- sum(residuals(model1)^2, na.rm = TRUE)
-
-# Calculate daily standard error of the estimate (from the data)
-se_daily <- sqrt(SSE/(n-2))
-
-# Convert to annual standard error of the estimate
-se_annual <- se_daily * sqrt(252)
-sf_annual <- se_annual*sqrt(1+1/n+(X_f - X_bar)^2/SSE)
-                            
-# Calculate 90% prediction interval
-t_score <- qt(0.95, df=n-2)  # for 90% interval
-lower_bound <- expected_return_amd - t_score * sf_annual
-upper_bound <- expected_return_amd + t_score * sf_annual
-cat("Confidence Interval: [", lower_bound, " ", upper_bound, "]")
+for (i in 1:nrow(amd_df)) {
+ current_price <- amd_df$close[i]
+  
+  # If the previous price is 0
+  if (previous_price == 0) {
+    amd_df$trade_type[i] <- 'buy'
+    amd_df$costs_proceeds[i] <- -(current_price * share_size)
+    accumulated_shares <- accumulated_shares + share_size
+    
+    # If the current price is less than the previous day's price
+  } else if (current_price < previous_price) {
+    amd_df$trade_type[i] <- 'buy'
+    amd_df$costs_proceeds[i] <- -(current_price * share_size)
+    accumulated_shares <- accumulated_shares + share_size
+  }
+  
+  # If it is the last day of trading
+  if (i == nrow(amd_df)) {
+    amd_df$trade_type[i] <- 'sell'
+    amd_df$costs_proceeds[i] <- accumulated_shares * current_price
+  }
+  
+  # Update the accumulated shares in the data frame
+  amd_df$accumulated_shares[i] <- accumulated_shares
+  
+  if(i == nrow(amd_df)) {
+    amd_df$accumulated_shares[i] <- 0
+  }
+  # Update the previous price for the next iteration
+  previous_price <- current_price
+}
 ```
+
+## Step 3: Customize Trading Period
+
+-Define a trading period you wanted in the past five years
+
+```{r period}
+
+# Define dates
+start_date <- as.Date('2024-01-01')
+end_date <- as.Date('2024-05-17')
+
+# Filter the data to include only the trading period
+amd_df <- amd_df[amd_df$date >= start_date & amd_df$date <= end_date, ]
+
+# Initialize columns for trade type, cost/proceeds, and accumulated shares in amd_df
+amd_df$trade_type <- NA
+amd_df$costs_proceeds <- NA  # Corrected column name
+amd_df$accumulated_shares <- 0  # Initialize if needed for tracking
+
+# Initialize variables for trading logic
+previous_price <- 0
+share_size <- 100
+accumulated_shares <- 0
+
+for (i in 1:nrow(amd_df)) {
+ current_price <- amd_df$close[i]
+  
+  # If the previous price is 0
+  if (previous_price == 0) {
+    amd_df$trade_type[i] <- 'buy'
+    amd_df$costs_proceeds[i] <- -(current_price * share_size)
+    accumulated_shares <- accumulated_shares + share_size
+    
+    # If the current price is less than the previous day's price
+  } else if (current_price < previous_price) {
+    amd_df$trade_type[i] <- 'buy'
+    amd_df$costs_proceeds[i] <- -(current_price * share_size)
+    accumulated_shares <- accumulated_shares + share_size
+  }
+  
+  # If it is the last day of trading
+  if (i == nrow(amd_df)) {
+    amd_df$trade_type[i] <- 'sell'
+    amd_df$costs_proceeds[i] <- accumulated_shares * current_price
+  }
+  
+  # Update the accumulated shares in the data frame
+  amd_df$accumulated_shares[i] <- accumulated_shares
+  
+   if(i == nrow(amd_df)) {
+    amd_df$accumulated_shares[i] <- 0
+   }
+  
+  # Update the previous price for the next iteration
+  previous_price <- current_price
+}
+
+# A plot is provided to visualise the flunctions in stock prices for the new trading period 
+plot(amd_df$date, amd_df$close,'l')
+```
+
+## Step 4: Run Your Algorithm and Analyze Results
+
+After running your algorithm, check if the trades were executed as expected. Calculate the total profit or loss and ROI from the trades.
+
+-   Total Profit/Loss Calculation: Calculate the total profit or loss from your trades. This should be the sum of all entries in the 'costs_proceeds' column of your dataframe. This column records the financial impact of each trade, reflecting money spent on buys as negative values and money gained from sells as positive values.
+-   Invested Capital: Calculate the total capital invested. This is equal to the sum of the 'costs_proceeds' values for all 'buy' transactions. Since these entries are negative (representing money spent), you should take the negative sum of these values to reflect the total amount invested.
+-   ROI Formula: $$\text{ROI} = \left( \frac{\text{Total Profit or Loss}}{\text{Total Capital Invested}} \right) \times 100$$
+
+```{r}
+#Initialise the variables
+total_investment_capital <- 0
+# for loop to calculate the sum of investment capital by summing all the trades
+#that has trade_type as 'buy',  removing NA values 
+for (i in 1:nrow(amd_df)) {
+  if (!is.na(amd_df$trade_type[i]) && amd_df$trade_type[i] == 'buy') {
+    total_investment_capital <- total_investment_capital + amd_df$costs_proceeds[i]
+  }
+}
+
+#the original total_investment_capital is a negative number, to reflect the 
+#total amount invested, the amount is the negative of the original result
+total_investment_capital <- - total_investment_capital
+# Sum the cost_proceeds column, removing NA values to find the total profit/loss
+Profit_Loss  <- sum(amd_df$costs_proceeds, na.rm = TRUE)
+ROI = (Profit_Loss/total_investment_capital)*100
+
+#The resulting ROI:
+ROI 
+#The resulting Profit/loss:
+Profit_Loss
+```
+
+## Step 5: Profit-Taking Strategy or Stop-Loss Mechanisum (Choose 1)
+
+-   Option 1: Implement a profit-taking strategy that you sell half of your holdings if the price has increased by a certain percentage (e.g., 20%) from the average purchase price.
+-   Option 2: Implement a stop-loss mechanism in the trading strategy that you sell half of your holdings if the stock falls by a certain percentage (e.g., 20%) from the average purchase price. You don't need to buy 100 stocks on the days that the stop-loss mechanism is triggered.
+
+```{r option}
+
+# Initialize variables for trading logic
+previous_price <- 0
+share_size <- 100
+accumulated_shares <- 0
+total_purchase_price <- 0
+number_of_purchase <- 0
+
+# Initialize columns
+amd_df$accumulated_shares <- 0
+amd_df$average_purchase_price <- NA
+
+for (i in 1:nrow(amd_df)) {
+  current_price <- amd_df$close[i]
+
+  
+  # Calculate the average purchase price and update accumulated shares in the dataframe
+  if (i > 1) {
+    amd_df$average_purchase_price[i] <- amd_df$average_purchase_price[i-1] # Use previous day's value if not updated
+    amd_df$accumulated_shares[i] <- amd_df$accumulated_shares[i-1]  # Use previous day's value if not updated
+  }
+  
+
+  # If the previous price is 0
+  if (previous_price == 0) {
+    amd_df$trade_type[i] <- 'buy'
+    amd_df$costs_proceeds[i] <- -(current_price * share_size)
+    accumulated_shares <- accumulated_shares + share_size
+    total_purchase_price <- total_purchase_price + current_price
+    number_of_purchase <- number_of_purchase + 1
+
+  
+  # If it is the last day of trading
+  } else if (i == nrow(amd_df)) {
+    amd_df$trade_type[i] <- 'sell'
+    accumulated_shares <- 0
+    # Implement profit-taking strategy
+  } else if (!is.na(amd_df$average_purchase_price[i]) && current_price > amd_df$average_purchase_price[i] * 1.2) {
+    amd_df$trade_type[i] <- 'sell_half'
+    amd_df$costs_proceeds[i] <- (current_price * accumulated_shares) / 2  # Sell half the holdings
+    accumulated_shares <- accumulated_shares / 2  # Update accumulated shares
+
+  # If the current price is less than the previous day's price
+  } else if (current_price < previous_price) {
+    amd_df$trade_type[i] <- 'buy'
+    amd_df$costs_proceeds[i] <- -(current_price * share_size)
+    accumulated_shares <- accumulated_shares + share_size
+    total_purchase_price <- total_purchase_price + current_price
+    number_of_purchase <- number_of_purchase + 1
+  } 
+
+  # Calculate the average purchase price and update accumulated shares in the 
+  #data frame for the end of this iteration
+  if (number_of_purchase > 0) {
+    average_purchase_price <- total_purchase_price / number_of_purchase
+    amd_df$average_purchase_price[i] <- average_purchase_price
+  } else {
+    amd_df$average_purchase_price[i] <- NA
+  }
+  
+  
+  amd_df$accumulated_shares[i] <- accumulated_shares
+
+  
+  # Update the previous price for the next iteration
+  previous_price <- current_price
+}
+
+total_investment_capital <- 0
+# for loop to calculate the sum of investment capital by summing all the trades 
+#that has trade_type as 'buy',  removing NA values 
+for (i in 1:nrow(amd_df)) {
+  if (!is.na(amd_df$trade_type[i]) && amd_df$trade_type[i] == 'buy') {
+    total_investment_capital <- total_investment_capital + amd_df$costs_proceeds[i]
+  }
+}
+
+#the original total_investment_capital is a negative number, to reflect the 
+#total amount invested, the amount is the negative of the original result
+total_investment_capital <- - total_investment_capital
+# Sum the cost_proceeds column, removing NA values to find the total profit/loss
+Profit_Loss  <- sum(amd_df$costs_proceeds, na.rm = TRUE)
+ROI = (Profit_Loss/total_investment_capital)*100
+
+#The resulting ROI:
+ROI 
+#The resulting Profit/loss:
+Profit_Loss
+```
+
+## Step 6: Summarize Your Findings
+
+-   Did your P/L and ROI improve over your chosen period?
+-   Relate your results to a relevant market event and explain why these outcomes may have occurred.
+
+```{r}
+#Initialise the variables
+total_investment_capital_after_profit_taking_strategy <- 0
+# for loop to calculate the sum of investment capital by summing all the trades that has trade_type as 'buy',  removing NA values 
+for (i in 1:nrow(amd_df)) {
+  if (!is.na(amd_df$trade_type[i]) && amd_df$trade_type[i] == 'buy') {
+    total_investment_capital_after_profit_taking_strategy <- total_investment_capital_after_profit_taking_strategy + amd_df$costs_proceeds[i]
+  }
+}
+
+# Plot the line plot
+plot(amd_df$date, amd_df$close, type='l')
+
+# Identify the dates for marking
+mark_dates <- as.Date(c("2024-03-06", "2024-03-07"))
+
+# Filter points corresponding to mark_dates to visually demmonstrate some key dates that is discussed below in this section
+points(amd_df$date[amd_df$date %in% mark_dates], 
+       amd_df$close[amd_df$date %in% mark_dates],
+       col = "red", pch = 19)
+
+#the original total_investment_capiial is a negative number, to reflect the total amount invested
+total_investment_capital_after_profit_taking_strategy <- - total_investment_capital_after_profit_taking_strategy
+# Sum the column, removing NA values to find the total profit/loss
+Profit_Loss_after_profit_taking_strategy  <- sum(amd_df$costs_proceeds, na.rm = TRUE)
+ROI_after_profit_taking_strategy <- (Profit_Loss_after_profit_taking_strategy/total_investment_capital_after_profit_taking_strategy)*100 
+
+```
+
+Discussion: After the implementation of the profit-taking strategy, the ROI has improved by 10.30598% from -2.169976% to 8.136007%, and P/L has improved by $76753.40 from -$17510.99 to $59242.41. The superiority of the profit-taking strategy in this scenario is due to how the share price in between the period has reached a price much higher than the price at the end of the period (the only time we sold in the first basic algorithm). By selling at these high prices, the algorithm is taking advantage of the occurrences of high prices which may not occur again later in the period as these sudden increases in prices is closely related to some real-time market events or financial news that has occurred that has convinced more shareholders to purchase shares of AMD, creating a high demand. For example, on Tuesday March 5 2024,  Jean Hu, AMD executive vice president, chief financial officer and treasurer, has presented at the Morgan Stanley Technology, Media and Telecom Conference, demonstrating how AMD has driven innovation in high-performance computing, graphics and visualization technologies and the company's success at updating their  AI opportunities for TAM to $400 billion in 2027, indicating its potential for further growth. Soon after,  the share prices has reached a very high peak on 2024-03-06 and 2024-03-07.
+
+My algorithm took advantage of this growth, and sold on both days. This allows me to receive a greater profit as I am selling the shares at a greater price, which contributed to a better ROI and P/L at the end of my period. 
+
+
