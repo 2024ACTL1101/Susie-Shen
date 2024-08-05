@@ -1,3 +1,14 @@
+---
+title: "ACTL1101 Assignment Part A"
+author: "Shu (Susie) Shen"
+date: "2024 T2"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+    
+---
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
